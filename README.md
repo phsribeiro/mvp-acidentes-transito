@@ -119,3 +119,11 @@ Os arquivos `acidentes_mais_graves.csv` e os demais CSVs devem ser consultados p
 ## Ambiente
 
 A execucao principal e feita no Databricks Free Edition com tabelas Delta gerenciadas pelo Unity Catalog. Nenhum token ou credencial deve ser salvo neste repositorio.
+
+## Workspace Databricks
+
+Workspace utilizado para executar os notebooks do projeto:
+
+https://dbc-f42aec16-a27e.cloud.databricks.com/browse/folders/workspace?o=7474644927109024
+
+O acesso ao workspace pode exigir autenticacao e permissao da conta do avaliador. O codigo e os resultados tambem estao disponiveis neste repositorio.
