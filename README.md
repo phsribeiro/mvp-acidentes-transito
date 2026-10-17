@@ -97,6 +97,10 @@ mvp-acidentes-transito/
 │   ├── acidentes_por_fator.csv
 │   ├── acidentes_por_hora.csv
 │   └── acidentes_por_regiao.csv
+└── evidencias/
+	├── 01_ingestao_dados.png
+	├── 02_limpeza_transformacao.png
+	└── 03_analise_resultados.png
 ```
 
 ## Ordem de execucao
@@ -148,14 +152,29 @@ Se o projeto fosse ampliado, eu registraria o catalogo/schema totalmente qualifi
 
 ## Evidencias de execucao no Databricks
 
-Os CSVs mostram os resultados analiticos, mas **nao provam sozinhos que os notebooks foram executados no Databricks**. O link do workspace abaixo pode exigir acesso e nao substitui evidencias visiveis no repositorio. Para o pedido de revisao, anexar capturas de tela reais do workspace, sem editar os resultados:
+As capturas abaixo foram feitas no workspace Databricks e mostram codigo, resultados e tabelas da execucao. O link do workspace pode exigir autenticacao; por isso as imagens ficam no repositorio para consulta sem acesso ao workspace.
 
-1. Notebook 01 com a saida de 50.000 linhas, 29 colunas e a gravacao de `bronze_acidentes`.
-2. Notebook 02 com 50.000 linhas e a gravacao de `silver_acidentes`, incluindo as colunas dos fatores contribuintes.
-3. Notebook 03 mostrando as tabelas Gold salvas e os controles de qualidade apos reexecutar a verificacao corrigida.
-4. Unity Catalog com catalogo/schema ativos e as tabelas Bronze, Silver e Gold.
+### 01 - Ingestao
 
-Salvar as imagens em `evidencias/` e inclui-las no repositorio antes de enviar o pedido de revisao. Nao incluir tokens, cookies ou informacoes pessoais nas capturas.
+![Execucao do notebook de ingestao no Databricks](evidencias/01_ingestao_dados.png)
+
+**Ressalva:** nesta captura o controle superior mostra `Interrupt`, e a saida visivel nao confirma a mensagem final de persistencia de `bronze_acidentes`. Para comprovar conclusivamente a conclusao da ingestao, atualize esta imagem apos uma execucao completa que mostre a mensagem `Dados brutos salvos na tabela: bronze_acidentes`.
+
+### 02 - Limpeza e transformacao
+
+![Execucao do notebook de limpeza e transformacao no Databricks](evidencias/02_limpeza_transformacao.png)
+
+A captura mostra a tabela `silver_acidentes`, os cinco campos de fatores contribuintes e a mensagem de gravacao com 50.000 linhas.
+
+### 03 - Analise dos resultados
+
+![Execucao do notebook de analise no Databricks](evidencias/03_analise_resultados.png)
+
+A captura mostra as analises, as cinco tabelas Gold e os controles de qualidade. **Ela foi feita antes da correcao da contagem de datas nulas**: o codigo visivel filtra `data_acidente` nula antes de calcular esse controle. Portanto, ela e evidencia da execucao daquela versao, mas nao comprova a verificacao corrigida. Reexecute a versao atual do notebook 03 e substitua esta captura para comprovar o controle sem esse filtro.
+
+As imagens sao evidencias complementares; a verificacao final do catalogo deve incluir tambem o resultado de `current_catalog()`, `current_schema()` e `SHOW TABLES` no Databricks.
+
+Os CSVs registrados correspondem a coleta de 22/09/2026, enquanto o print 03 mostra uma execucao posterior, em 17/10/2026. Como a chamada da API usa `$limit=50000` sem ordenacao explicita, as amostras podem variar entre execucoes; por exemplo, sexta-feira aparece com 7.643 registros no CSV e 7.644 na captura. Para uma entrega com numeros perfeitamente consistentes, exporte novamente os CSVs a partir da mesma execucao usada nas capturas e atualize as conclusoes acima.
 
 ## Ambiente
 
