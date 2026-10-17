@@ -32,7 +32,7 @@ O proprio NYPD informa que os registros sao preliminares e podem ser atualizados
 7. Analise dos fatores contribuintes registrados para os veiculos.
 8. Persistencia dos resultados na camada gold.
 
-As tabelas Delta sao gerenciadas pelo Unity Catalog no catalogo e schema ativos durante a execucao. Os notebooks usam nomes nao qualificados (`saveAsTable("nome")`), portanto o catalogo/schema efetivo deve ser registrado a partir do workspace com `SELECT current_catalog(), current_schema()`.
+As tabelas Delta sao gerenciadas pelo Unity Catalog. Na execucao registrada nas evidencias, o catalogo ativo foi `workspace` e o schema foi `default`; as tabelas foram listadas por `SHOW TABLES` nesse contexto. Os notebooks usam nomes nao qualificados (`saveAsTable("nome")`), que resolvem para `workspace.default.nome` nessa execucao.
 
 - `bronze_acidentes`: dados brutos validados.
 - `silver_acidentes`: dados limpos e enriquecidos.
@@ -66,7 +66,7 @@ O notebook tambem exibe a lista dos 20 casos de maior gravidade. Sao **cinco tab
 | `gold_acidentes_por_ano` | Gold | `ano`, `total_acidentes`, `total_feridos`, `total_mortos`, `gravidade_media`. |
 | `gold_acidentes_por_fator` | Gold | `fator_contribuinte`, `total_registros`, `gravidade_media`, `total_feridos`, `total_mortos`. |
 
-O nome totalmente qualificado e o local fisico das tabelas dependem do catalogo/schema ativos no workspace. Para registrar o catalogo usado, execute no Databricks:
+O nome totalmente qualificado das tabelas na execucao registrada e `workspace.default.<nome_da_tabela>`. Para verificar o catalogo/schema em outra execucao, use:
 
 ```sql
 SELECT current_catalog() AS catalogo, current_schema() AS schema;
@@ -77,7 +77,7 @@ SHOW TABLES;
 
 As regras implementadas incluem validacao das colunas obrigatorias na Bronze, conversao da data e horario, substituicao de borough ausente por `NAO INFORMADA`, preenchimento de feridos/mortos ausentes com zero e derivacao de gravidade (`feridos + 10 * mortos`). O notebook 03 verifica a quantidade de linhas e valores nulos em data, regiao e gravidade.
 
-Uma execucao anterior reportou 50.000 linhas e zero nulos para esses tres campos. A verificacao de datas foi corrigida depois: anteriormente a tabela era filtrada para remover datas nulas antes da contagem, o que poderia mascarar valores invalidos. **Reexecute o notebook 03 com a versao atual antes de tratar o zero de datas nulas como resultado confirmado** e anexe a captura da execucao.
+Na execucao registrada em 17/10/2026 foram processadas 50.000 linhas; a verificacao retornou zero datas nulas, zero regioes nulas e zero gravidades nulas. A verificacao de datas foi corrigida para contar a tabela Silver completa, sem filtrar previamente datas nulas.
 
 Os nulos de regiao e de feridos/mortos sao convertidos para marcadores/zeros; isso permite executar as agregacoes, mas nao recupera a informacao original. A quantidade original de regioes ausentes e apresentada separadamente nos resultados.
 
@@ -152,29 +152,29 @@ Se o projeto fosse ampliado, eu registraria o catalogo/schema totalmente qualifi
 
 ## Evidencias de execucao no Databricks
 
-As capturas abaixo foram feitas no workspace Databricks e mostram codigo, resultados e tabelas da execucao. O link do workspace pode exigir autenticacao; por isso as imagens ficam no repositorio para consulta sem acesso ao workspace.
+As capturas abaixo foram feitas no workspace Databricks em 17/10/2026 e mostram codigo, resultados e tabelas da execucao. O link do workspace pode exigir autenticacao; por isso as imagens ficam no repositorio para consulta sem acesso ao workspace.
 
 ### 01 - Ingestao
 
 ![Execucao do notebook de ingestao no Databricks](evidencias/01_ingestao_dados.png)
 
-**Ressalva:** nesta captura o controle superior mostra `Interrupt`, e a saida visivel nao confirma a mensagem final de persistencia de `bronze_acidentes`. Para comprovar conclusivamente a conclusao da ingestao, atualize esta imagem apos uma execucao completa que mostre a mensagem `Dados brutos salvos na tabela: bronze_acidentes`.
+Esta captura mostra a carga de 50.000 linhas e 29 colunas, a validacao dos campos e a confirmacao `Dados brutos salvos na tabela: bronze_acidentes`.
 
 ### 02 - Limpeza e transformacao
 
 ![Execucao do notebook de limpeza e transformacao no Databricks](evidencias/02_limpeza_transformacao.png)
 
-A captura mostra a tabela `silver_acidentes`, os cinco campos de fatores contribuintes e a mensagem de gravacao com 50.000 linhas.
+A captura mostra os cinco campos de fatores contribuintes, a tabela `silver_acidentes` e a confirmacao de gravacao com 50.000 linhas.
 
 ### 03 - Analise dos resultados
 
 ![Execucao do notebook de analise no Databricks](evidencias/03_analise_resultados.png)
 
-A captura mostra as analises, as cinco tabelas Gold e os controles de qualidade. **Ela foi feita antes da correcao da contagem de datas nulas**: o codigo visivel filtra `data_acidente` nula antes de calcular esse controle. Portanto, ela e evidencia da execucao daquela versao, mas nao comprova a verificacao corrigida. Reexecute a versao atual do notebook 03 e substitua esta captura para comprovar o controle sem esse filtro.
+A captura mostra o catalogo `workspace`, schema `default`, as tabelas listadas, as analises, as cinco tabelas Gold salvas e os controles de qualidade. O codigo verifica `datas_nulas` na Silver completa, sem filtrar as datas antes da contagem. Os tres controles apresentados retornaram zero.
 
-As imagens sao evidencias complementares; a verificacao final do catalogo deve incluir tambem o resultado de `current_catalog()`, `current_schema()` e `SHOW TABLES` no Databricks.
+As imagens sao evidencias complementares da execucao na plataforma cloud. O notebook 03 registra o catalogo/schema e lista as tabelas por `SHOW TABLES`.
 
-Os CSVs registrados correspondem a coleta de 22/09/2026, enquanto o print 03 mostra uma execucao posterior, em 17/10/2026. Como a chamada da API usa `$limit=50000` sem ordenacao explicita, as amostras podem variar entre execucoes; por exemplo, sexta-feira aparece com 7.643 registros no CSV e 7.644 na captura. Para uma entrega com numeros perfeitamente consistentes, exporte novamente os CSVs a partir da mesma execucao usada nas capturas e atualize as conclusoes acima.
+Os CSVs correspondem a coleta de 22/09/2026 e as capturas mostram a execucao de 17/10/2026. Como a API usa `$limit=50000` sem ordenacao explicita, alguns totais podem variar entre coletas; por exemplo, `Unsafe Speed` aparece com 2.124 registros no CSV e 2.127 na captura. Para comparar todos os numeros diretamente, exporte os CSVs a partir da mesma execucao das capturas.
 
 ## Ambiente
 
