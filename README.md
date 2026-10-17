@@ -13,11 +13,13 @@ Analisar acidentes de transito para identificar quando e onde as ocorrencias se 
 
 ## Fonte dos dados
 
-O MVP utiliza uma amostra publica de 50.000 registros do conjunto **Motor Vehicle Collisions - Crashes**, disponibilizado pelo NYC Open Data por meio de uma API Socrata:
+O MVP utiliza uma amostra de 50.000 registros do conjunto oficial **Motor Vehicle Collisions - Crashes**, publicado pelo NYPD no NYC Open Data por meio de uma API Socrata. Cada linha representa uma colisao reportada:
 
 `https://data.cityofnewyork.us/resource/h9gi-nx95.csv`
 
-A fonte e publica e sera usada para fins academicos. A coleta analisada foi realizada em 22/09/2026. A politica de uso e a referencia ao portal NYC Open Data devem acompanhar a entrega final.
+O conjunto e publico no ambito da politica de dados abertos da cidade de Nova York. O registro do dataset nao informa uma licenca Creative Commons especifica; por isso, este projeto nao atribui uma licenca que a fonte nao declara. A fonte e a agencia NYPD estao atribuidas acima. Consulte tambem os [termos de uso do NYC.gov](https://www.nyc.gov/main/terms-of-use) e a [politica municipal de dados abertos](https://www.nyc.gov/opendata/get-started/what-is-open-data-). A coleta usada nos resultados foi realizada em 22/09/2026.
+
+O proprio NYPD informa que os registros sao preliminares e podem ser atualizados quando detalhes do boletim de colisao forem revisados.
 
 ## Pipeline implementado
 
@@ -30,7 +32,7 @@ A fonte e publica e sera usada para fins academicos. A coleta analisada foi real
 7. Analise dos fatores contribuintes registrados para os veiculos.
 8. Persistencia dos resultados na camada gold.
 
-As tabelas Delta sao gerenciadas pelo Unity Catalog:
+As tabelas Delta sao gerenciadas pelo Unity Catalog no catalogo e schema ativos durante a execucao. Os notebooks usam nomes nao qualificados (`saveAsTable("nome")`), portanto o catalogo/schema efetivo deve ser registrado a partir do workspace com `SELECT current_catalog(), current_schema()`.
 
 - `bronze_acidentes`: dados brutos validados.
 - `silver_acidentes`: dados limpos e enriquecidos.
@@ -39,6 +41,8 @@ As tabelas Delta sao gerenciadas pelo Unity Catalog:
 - `gold_acidentes_por_regiao`: ocorrencias, feridos, mortos e gravidade por regiao.
 - `gold_acidentes_por_ano`: evolucao anual das ocorrencias e da gravidade.
 - `gold_acidentes_por_fator`: frequencia, feridos, mortos e gravidade media por fator contribuinte.
+
+O notebook tambem exibe a lista dos 20 casos de maior gravidade. Sao **cinco tabelas Gold persistidas** e uma sexta saida analitica exibida no notebook; a lista dos 20 casos nao e salva como tabela Gold.
 
 ### Tratamentos realizados
 
@@ -50,13 +54,32 @@ As tabelas Delta sao gerenciadas pelo Unity Catalog:
 - Criacao das colunas `dia_semana`, `hora` e `ano`.
 - Preservacao dos cinco campos de fator contribuinte para a analise final.
 
-### Controles de qualidade
+## Catalogo de dados
 
-Na execucao validada foram processados 50.000 registros, com os seguintes resultados:
+| Tabela | Camada | Conteudo e colunas principais |
+|---|---|---|
+| `bronze_acidentes` | Bronze | 50 mil registros da API, 29 campos originais, incluindo data, horario, borough, contagens de feridos/mortos e fatores contribuintes. |
+| `silver_acidentes` | Silver | Data e hora tipadas; regiao; feridos; mortos; gravidade; dia da semana; hora; ano; cinco campos `contributing_factor_vehicle_*`. |
+| `gold_acidentes_por_dia` | Gold | `dia_semana`, `total_acidentes`, `gravidade_media`. |
+| `gold_acidentes_por_hora` | Gold | `hora`, `total_acidentes`, `gravidade_media`. |
+| `gold_acidentes_por_regiao` | Gold | `regiao`, `total_acidentes`, `total_feridos`, `total_mortos`, `gravidade_media`. |
+| `gold_acidentes_por_ano` | Gold | `ano`, `total_acidentes`, `total_feridos`, `total_mortos`, `gravidade_media`. |
+| `gold_acidentes_por_fator` | Gold | `fator_contribuinte`, `total_registros`, `gravidade_media`, `total_feridos`, `total_mortos`. |
 
-- datas nulas: 0;
-- regioes nulas: 0;
-- gravidades nulas: 0.
+O nome totalmente qualificado e o local fisico das tabelas dependem do catalogo/schema ativos no workspace. Para registrar o catalogo usado, execute no Databricks:
+
+```sql
+SELECT current_catalog() AS catalogo, current_schema() AS schema;
+SHOW TABLES;
+```
+
+## Qualidade de dados
+
+As regras implementadas incluem validacao das colunas obrigatorias na Bronze, conversao da data e horario, substituicao de borough ausente por `NAO INFORMADA`, preenchimento de feridos/mortos ausentes com zero e derivacao de gravidade (`feridos + 10 * mortos`). O notebook 03 verifica a quantidade de linhas e valores nulos em data, regiao e gravidade.
+
+Uma execucao anterior reportou 50.000 linhas e zero nulos para esses tres campos. A verificacao de datas foi corrigida depois: anteriormente a tabela era filtrada para remover datas nulas antes da contagem, o que poderia mascarar valores invalidos. **Reexecute o notebook 03 com a versao atual antes de tratar o zero de datas nulas como resultado confirmado** e anexe a captura da execucao.
+
+Os nulos de regiao e de feridos/mortos sao convertidos para marcadores/zeros; isso permite executar as agregacoes, mas nao recupera a informacao original. A quantidade original de regioes ausentes e apresentada separadamente nos resultados.
 
 ## Estrutura
 
@@ -74,7 +97,6 @@ mvp-acidentes-transito/
 │   ├── acidentes_por_fator.csv
 │   ├── acidentes_por_hora.csv
 │   └── acidentes_por_regiao.csv
-└── docs/
 ```
 
 ## Ordem de execucao
@@ -87,7 +109,7 @@ Execute os notebooks nesta ordem no Databricks Free Edition:
 
 O notebook 01 cria `bronze_acidentes`, o notebook 02 cria `silver_acidentes` e o notebook 03 cria as tabelas gold.
 
-## Resultados esperados
+## Resultados observados
 
 As tabelas gold foram exportadas para a pasta `resultados/`. Os principais resultados observados foram:
 
@@ -115,6 +137,25 @@ Os arquivos `acidentes_mais_graves.csv` e os demais CSVs devem ser consultados p
 - Fatores com poucos registros podem apresentar gravidade media alta por efeito de amostra pequena.
 - A formula de gravidade e um indicador criado para este MVP, nao uma classificacao oficial de severidade.
 - Associacao entre variaveis nao implica causalidade.
+
+## Autoavaliacao
+
+O MVP atende ao objetivo de construir um pipeline cloud de ponta a ponta e produzir agregacoes que distinguem frequencia de gravidade. A separacao Bronze/Silver/Gold e os controles de qualidade tornam as etapas compreensiveis e reproduziveis quando executadas no workspace correto. Escolhi tabelas Gold agregadas em vez de um esquema estrela dimensional para manter o escopo pequeno e responder diretamente as perguntas propostas; reconheco que isso limita consultas ad hoc e reutilizacao por outras analises.
+
+Como limitacoes, a amostra de 50.000 registros esta concentrada em 2021, 34,6% dos registros nao informam borough, fatores podem aparecer em mais de uma coluna para a mesma colisao e o indice de gravidade e uma regra exploratoria, nao uma medida oficial. A amostra via API nao usa ordenacao explicita, portanto pode variar quando coletada novamente. Nao e possivel inferir causalidade.
+
+Se o projeto fosse ampliado, eu registraria o catalogo/schema totalmente qualificado, adicionaria testes de duplicidade e de faixa para contagens, compararia amostras temporais equilibradas e criaria um dashboard com filtros por periodo e regiao.
+
+## Evidencias de execucao no Databricks
+
+Os CSVs mostram os resultados analiticos, mas **nao provam sozinhos que os notebooks foram executados no Databricks**. O link do workspace abaixo pode exigir acesso e nao substitui evidencias visiveis no repositorio. Para o pedido de revisao, anexar capturas de tela reais do workspace, sem editar os resultados:
+
+1. Notebook 01 com a saida de 50.000 linhas, 29 colunas e a gravacao de `bronze_acidentes`.
+2. Notebook 02 com 50.000 linhas e a gravacao de `silver_acidentes`, incluindo as colunas dos fatores contribuintes.
+3. Notebook 03 mostrando as tabelas Gold salvas e os controles de qualidade apos reexecutar a verificacao corrigida.
+4. Unity Catalog com catalogo/schema ativos e as tabelas Bronze, Silver e Gold.
+
+Salvar as imagens em `evidencias/` e inclui-las no repositorio antes de enviar o pedido de revisao. Nao incluir tokens, cookies ou informacoes pessoais nas capturas.
 
 ## Ambiente
 
